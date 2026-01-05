@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snake7"
+version = "0.1.0"
+description = "Snake Gymnasium environment + PPO(LSTM) agent (sb3_contrib RecurrentPPO)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "godnight" }]
+dependencies = [
+  "gymnasium>=0.29",
+  "numpy",
+  "torch",
+  "stable-baselines3>=2.0",
+  "sb3-contrib>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+snake7-train = "snake7.train:main"
+snake7-eval = "snake7.eval:main"
+snake7-watch = "snake7.watch:main"
+
+[tool.setuptools]
+packages = ["snake7"]
+
