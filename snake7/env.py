@@ -86,6 +86,44 @@ class SnakeEnv(gym.Env[np.ndarray, int]):
         self._snake = [(head_x, head_y), (head_x - 1, head_y), (head_x - 2, head_y)]
         self._place_food()
 
+        options = options or {}
+        snake_opt = options.get("snake", None)
+        direction_opt = options.get("direction", None)
+        food_opt = options.get("food", None)
+
+        if snake_opt is not None:
+            snake_list: list[tuple[int, int]] = []
+            for item in snake_opt:
+                if not isinstance(item, (tuple, list)) or len(item) != 2:
+                    raise ValueError("options['snake'] must be a sequence of (x, y) pairs")
+                x, y = int(item[0]), int(item[1])
+                if x < 0 or x >= self.width or y < 0 or y >= self.height:
+                    raise ValueError("options['snake'] contains out-of-bounds coordinates")
+                snake_list.append((x, y))
+            if not snake_list:
+                raise ValueError("options['snake'] must not be empty")
+            if len(set(snake_list)) != len(snake_list):
+                raise ValueError("options['snake'] must not contain duplicate coordinates")
+            self._snake = snake_list
+
+        if direction_opt is not None:
+            direction = int(direction_opt)
+            if direction not in (0, 1, 2, 3):
+                raise ValueError("options['direction'] must be one of {0,1,2,3}")
+            self._direction = direction
+
+        if food_opt is not None:
+            if not isinstance(food_opt, (tuple, list)) or len(food_opt) != 2:
+                raise ValueError("options['food'] must be an (x, y) pair")
+            fx, fy = int(food_opt[0]), int(food_opt[1])
+            if fx < 0 or fx >= self.width or fy < 0 or fy >= self.height:
+                raise ValueError("options['food'] contains out-of-bounds coordinates")
+            if (fx, fy) in set(self._snake):
+                raise ValueError("options['food'] must not overlap the snake")
+            self._food = (fx, fy)
+        elif snake_opt is not None:
+            self._place_food()
+
         obs = self._get_obs()
         info = self._get_info()
         if self.render_mode == "human":

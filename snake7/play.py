@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 
-from snake7.env import SnakeEnv
+# Allow running this file directly (e.g. `python snake7/play.py`) by ensuring the
+# repository root is on sys.path. Recommended usage is still `python -m snake7.play`.
+if __package__ in (None, "") and __name__ == "__main__":
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    __package__ = "snake7"
 
 
 def parse_args() -> argparse.Namespace:
@@ -29,6 +36,8 @@ def main() -> None:
         from sb3_contrib import RecurrentPPO
     except Exception as e:  # pragma: no cover
         raise SystemExit("sb3_contrib is required: pip install sb3-contrib") from e
+
+    from snake7.env import SnakeEnv
 
     model = RecurrentPPO.load(str(args.model))
 
@@ -63,4 +72,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

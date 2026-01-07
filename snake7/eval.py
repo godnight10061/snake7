@@ -4,9 +4,16 @@ import argparse
 import sys
 from pathlib import Path
 
-import numpy as np
+# Allow running this file directly (e.g. `python snake7/eval.py`) by ensuring the
+# repository root is on sys.path. Recommended usage is still `python -m snake7.eval`.
+if __package__ in (None, "") and __name__ == "__main__":
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    __package__ = "snake7"
 
-from snake7.watch import resolve_model_path
+
+import numpy as np
 
 
 def _parse_args() -> argparse.Namespace:
@@ -40,6 +47,7 @@ def main() -> None:
         raise SystemExit("sb3_contrib is required: pip install sb3-contrib") from e
 
     from snake7.env import SnakeEnv
+    from snake7.watch import resolve_model_path
 
     if args.episodes <= 0:
         raise SystemExit("--episodes must be > 0")

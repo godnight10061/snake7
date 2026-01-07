@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-from stable_baselines3.common.env_util import make_vec_env
-
-from snake7.env import SnakeEnv
+# Allow running this file directly (e.g. `python snake7/train.py`) by ensuring the
+# repository root is on sys.path. Recommended usage is still `python -m snake7.train`.
+if __package__ in (None, "") and __name__ == "__main__":
+    repo_root = Path(__file__).resolve().parents[1]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    __package__ = "snake7"
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,7 +66,10 @@ def main() -> None:
     except Exception as e:  # pragma: no cover
         raise SystemExit("sb3_contrib is required: pip install sb3-contrib") from e
 
+    from stable_baselines3.common.env_util import make_vec_env
+
     from snake7.callbacks import WallTimeEarlyStopCallback
+    from snake7.env import SnakeEnv
 
     if args.n_envs <= 0:
         raise SystemExit("--n-envs must be > 0")
