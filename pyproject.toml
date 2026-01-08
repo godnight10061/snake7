@@ -16,6 +16,7 @@ dependencies = [
   "torch",
   "stable-baselines3>=2.0",
   "sb3-contrib>=2.0",
+  "neat-python",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +24,7 @@ dev = ["pytest"]
 
 [project.scripts]
 snake7-train = "snake7.train:main"
+snake7-train-neat = "snake7.train_neat:main"
 snake7-eval = "snake7.eval:main"
 snake7-watch = "snake7.watch:main"
 
