@@ -14,14 +14,13 @@ def test_neat_eval_assigns_fitness_and_action_valid(tmp_path):
     import snake7.train_neat as train_neat
 
     cfg_path = tmp_path / "neat.cfg"
-    cfg_path.write_text(
-        train_neat.render_neat_config(
-            pop_size=2,
-            num_inputs=SnakeEnv().observation_space.shape[0],
-            num_outputs=SnakeEnv().action_space.n,
-        ),
-        encoding="utf-8",
+    cfg_text = train_neat.render_neat_config(
+        pop_size=2,
+        num_inputs=SnakeEnv().observation_space.shape[0],
+        num_outputs=SnakeEnv().action_space.n,
     )
+    assert "no_fitness_termination" in cfg_text
+    cfg_path.write_text(cfg_text, encoding="utf-8")
 
     config = neat.Config(
         neat.DefaultGenome,
@@ -58,4 +57,3 @@ def test_neat_eval_assigns_fitness_and_action_valid(tmp_path):
     obs, _ = env.reset(seed=0)
     action = train_neat.select_action(net.activate(obs.tolist()))
     assert env.action_space.contains(action)
-

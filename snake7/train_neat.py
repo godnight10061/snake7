@@ -50,6 +50,7 @@ fitness_criterion     = max
 fitness_threshold     = 1000000
 pop_size              = {pop_size}
 reset_on_extinction   = False
+no_fitness_termination = False
 
 [DefaultGenome]
 # node activation options
@@ -93,6 +94,8 @@ conn_delete_prob        = 0.5
 # connection enable options
 enabled_default         = True
 enabled_mutate_rate     = 0.01
+enabled_rate_to_true_add  = 0.0
+enabled_rate_to_false_add = 0.0
 
 # connection weight options
 weight_init_type        = gaussian
@@ -115,6 +118,10 @@ num_outputs             = {num_outputs}
 feed_forward            = True
 initial_connection      = full
 
+# structural mutation options
+single_structural_mutation = False
+structural_mutation_surer   = default
+
 [DefaultSpeciesSet]
 compatibility_threshold = 3.0
 
@@ -126,6 +133,7 @@ species_elitism      = 2
 [DefaultReproduction]
 elitism            = 2
 survival_threshold = 0.2
+min_species_size   = 2
 """
 
 
