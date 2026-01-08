@@ -33,11 +33,10 @@ def test_neat_eval_assigns_fitness_and_action_valid(tmp_path):
     random.seed(0)
     np.random.seed(0)
 
-    genomes = []
-    for gid in [0, 1]:
-        g = neat.DefaultGenome(gid)
-        g.configure_new(config.genome_config)
-        genomes.append((gid, g))
+    # Use neat.Population to create initial genomes, as newer neat-python versions
+    # require an innovation tracker to be set on the genome config.
+    pop = neat.Population(config)
+    genomes = list(pop.population.items())
 
     best_fitness = train_neat.eval_genomes(
         genomes,
