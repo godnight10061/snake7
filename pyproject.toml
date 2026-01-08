@@ -23,9 +23,9 @@ dev = ["pytest"]
 
 [project.scripts]
 snake7-train = "snake7.train:main"
+snake7-train-transformer = "snake7.train_transformer:main"
 snake7-eval = "snake7.eval:main"
 snake7-watch = "snake7.watch:main"
 
 [tool.setuptools]
 packages = ["snake7"]
-
