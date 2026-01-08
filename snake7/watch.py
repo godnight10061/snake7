@@ -24,7 +24,8 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
     1) Explicit `model_path`
     2) `best_model.zip` in `model_dir`
     3) `snake_ppo_lstm.zip` in `model_dir`
-    4) Newest `*.zip` in `model_dir` (mtime, tie-break by path)
+    4) `best_genome.pkl` in `model_dir`
+    5) Newest `*.zip` or `*.pkl` in `model_dir` (mtime, tie-break by path)
     """
     model_dir = Path(model_dir)
 
@@ -34,7 +35,11 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
             raise FileNotFoundError(f"Model not found: {p}")
         return p
 
-    preferred = [model_dir / "best_model.zip", model_dir / "snake_ppo_lstm.zip"]
+    preferred = [
+        model_dir / "best_model.zip",
+        model_dir / "snake_ppo_lstm.zip",
+        model_dir / "best_genome.pkl",
+    ]
     for p in preferred:
         if p.exists():
             return p
@@ -42,9 +47,9 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
     if not model_dir.exists():
         raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
-    zips = sorted(model_dir.glob("*.zip"))
-    if not zips:
-        raise FileNotFoundError(f"No .zip models found in: {model_dir}")
+    files = sorted(list(model_dir.glob("*.zip")) + list(model_dir.glob("*.pkl")))
+    if not files:
+        raise FileNotFoundError(f"No .zip or .pkl models found in: {model_dir}")
 
     def sort_key(p: Path) -> tuple[float, str]:
         try:
@@ -54,7 +59,7 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
         # newest first; tie-break by path (ascending) for determinism
         return (-mtime, str(p))
 
-    return sorted(zips, key=sort_key)[0]
+    return sorted(files, key=sort_key)[0]
 
 
 def _enable_windows_vt_mode() -> None:
@@ -77,7 +82,7 @@ def _enable_windows_vt_mode() -> None:
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Watch a trained Snake agent play in real time (terminal/ANSI).")
-    p.add_argument("--model", type=Path, default=None, help="Path to model .zip (optional).")
+    p.add_argument("--model", type=Path, default=None, help="Path to model .zip or .pkl (optional).")
     p.add_argument("--model-dir", type=Path, default=Path("."), help="Directory to search for model files.")
 
     p.add_argument("--width", type=int, default=10)
@@ -92,13 +97,43 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+class NeatAgent:
+    def __init__(self, genome_path: Path):
+        import pickle
+        import neat
+        from snake7.train_neat import select_action
+
+        self.genome_path = genome_path
+        with open(genome_path, "rb") as f:
+            self.genome = pickle.load(f)
+
+        # Look for config next to genome
+        config_path = genome_path.parent / "neat_config.txt"
+        if not config_path.exists():
+            config_path = genome_path.parent / "snake_neat_config.txt"
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"NEAT config not found next to genome at {genome_path}")
+
+        self.config = neat.Config(
+            neat.DefaultGenome,
+            neat.DefaultReproduction,
+            neat.DefaultSpeciesSet,
+            neat.DefaultStagnation,
+            str(config_path),
+        )
+        self.net = neat.nn.FeedForwardNetwork.create(self.genome, self.config)
+        self.select_action = select_action
+
+    def predict(self, obs, state=None, episode_start=None, deterministic=True):
+        import numpy as np
+        outputs = self.net.activate(obs.tolist())
+        action = self.select_action(outputs)
+        return np.array(action), None
+
+
 def main() -> None:
     args = _parse_args()
-
-    try:
-        from sb3_contrib import RecurrentPPO
-    except Exception as e:  # pragma: no cover
-        raise SystemExit("sb3_contrib is required: pip install sb3-contrib") from e
 
     from snake7.env import SnakeEnv
 
@@ -106,7 +141,19 @@ def main() -> None:
         raise SystemExit("--episodes must be > 0")
 
     model_path = resolve_model_path(model_path=args.model, model_dir=args.model_dir)
-    model = RecurrentPPO.load(str(model_path))
+
+    if model_path.suffix == ".pkl":
+        try:
+            import neat
+        except ImportError:
+            raise SystemExit("neat-python is required for .pkl models: pip install neat-python")
+        model = NeatAgent(model_path)
+    else:
+        try:
+            from sb3_contrib import RecurrentPPO
+        except ImportError:
+            raise SystemExit("sb3-contrib is required for .zip models: pip install sb3-contrib")
+        model = RecurrentPPO.load(str(model_path))
 
     use_ansi = (not args.no_ansi) and sys.stdout.isatty()
     if use_ansi:
