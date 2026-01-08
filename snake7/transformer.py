@@ -41,28 +41,28 @@ class TransformerFeaturesExtractor(BaseFeaturesExtractor):
         if pooling not in ("last", "mean"):
             raise ValueError("pooling must be 'last' or 'mean'")
 
-        super().__init__(observation_space, features_dim=int(d_model))
+        super().__init__(observation_space, features_dim=d_model)
 
-        self.seq_len = int(seq_len)
-        self.obs_dim = int(obs_dim)
+        self.seq_len = seq_len
+        self.obs_dim = obs_dim
         self.pooling = pooling
 
         if dim_feedforward is None:
-            dim_feedforward = int(d_model) * 4
+            dim_feedforward = d_model * 4
 
-        self.embed = nn.Linear(self.obs_dim, int(d_model))
-        self.pos_embed = nn.Parameter(th.zeros(self.seq_len, int(d_model)))
+        self.embed = nn.Linear(self.obs_dim, d_model)
+        self.pos_embed = nn.Parameter(th.zeros(self.seq_len, d_model))
 
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=int(d_model),
-            nhead=int(n_head),
-            dim_feedforward=int(dim_feedforward),
-            dropout=float(dropout),
+            d_model=d_model,
+            nhead=n_head,
+            dim_feedforward=dim_feedforward,
+            dropout=dropout,
             batch_first=True,
             activation="relu",
         )
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=int(n_layers))
-        self.norm = nn.LayerNorm(int(d_model))
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
+        self.norm = nn.LayerNorm(d_model)
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
         x = self.embed(observations)
