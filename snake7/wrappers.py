@@ -49,9 +49,6 @@ class ObsStackWrapper(gym.Wrapper):
         obs, reward, terminated, truncated, info = self.env.step(action)
         obs_arr = np.asarray(obs, dtype=self._obs_dtype)
 
-        if not self._frames:
-            for _ in range(self.n_stack - 1):
-                self._frames.append(obs_arr.copy())
         self._frames.append(obs_arr.copy())
 
         return self._get_obs(), float(reward), bool(terminated), bool(truncated), info

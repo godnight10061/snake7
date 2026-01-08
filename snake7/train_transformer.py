@@ -109,7 +109,7 @@ def main() -> None:
         raise SystemExit("--eval-episodes must be > 0")
 
     total_batch = args.n_envs * args.n_steps
-    batch_size = int(args.batch_size)
+    batch_size = args.batch_size
     if total_batch % batch_size != 0:
         raise SystemExit(f"--batch-size must divide n_envs*n_steps ({total_batch})")
 
@@ -117,25 +117,27 @@ def main() -> None:
     if max_steps_without_food is None:
         max_steps_without_food = args.width * args.height
 
+    env_kwargs = {
+        "width": args.width,
+        "height": args.height,
+        "max_steps": args.max_steps,
+        "max_steps_without_food": max_steps_without_food,
+        "step_penalty": args.step_penalty,
+        "truncation_penalty": args.truncation_penalty,
+        "distance_shaping": args.distance_shaping,
+        "distance_shaping_clip": args.distance_shaping_clip,
+        "food_reward": args.food_reward,
+        "death_penalty": args.death_penalty,
+        "win_reward": args.win_reward,
+    }
+
     env = make_vec_env(
         SnakeEnv,
         n_envs=args.n_envs,
         seed=args.seed,
-        env_kwargs={
-            "width": args.width,
-            "height": args.height,
-            "max_steps": args.max_steps,
-            "max_steps_without_food": max_steps_without_food,
-            "step_penalty": args.step_penalty,
-            "truncation_penalty": args.truncation_penalty,
-            "distance_shaping": args.distance_shaping,
-            "distance_shaping_clip": args.distance_shaping_clip,
-            "food_reward": args.food_reward,
-            "death_penalty": args.death_penalty,
-            "win_reward": args.win_reward,
-        },
+        env_kwargs=env_kwargs,
         wrapper_class=ObsStackWrapper,
-        wrapper_kwargs={"n_stack": int(args.n_stack)},
+        wrapper_kwargs={"n_stack": args.n_stack},
     )
 
     model = PPO(
@@ -153,11 +155,11 @@ def main() -> None:
         policy_kwargs={
             "features_extractor_class": TransformerFeaturesExtractor,
             "features_extractor_kwargs": {
-                "d_model": int(args.d_model),
-                "n_head": int(args.n_head),
-                "n_layers": int(args.n_layers),
-                "dropout": float(args.dropout),
-                "pooling": str(args.pooling),
+                "d_model": args.d_model,
+                "n_head": args.n_head,
+                "n_layers": args.n_layers,
+                "dropout": args.dropout,
+                "pooling": args.pooling,
             },
         },
     )
@@ -180,30 +182,18 @@ def main() -> None:
             SnakeEnv,
             n_envs=1,
             seed=args.seed + 10_000,
-            env_kwargs={
-                "width": args.width,
-                "height": args.height,
-                "max_steps": args.max_steps,
-                "max_steps_without_food": max_steps_without_food,
-                "step_penalty": args.step_penalty,
-                "truncation_penalty": args.truncation_penalty,
-                "distance_shaping": args.distance_shaping,
-                "distance_shaping_clip": args.distance_shaping_clip,
-                "food_reward": args.food_reward,
-                "death_penalty": args.death_penalty,
-                "win_reward": args.win_reward,
-            },
+            env_kwargs=env_kwargs,
             wrapper_class=ObsStackWrapper,
-            wrapper_kwargs={"n_stack": int(args.n_stack)},
+            wrapper_kwargs={"n_stack": args.n_stack},
         )
 
-        eval_freq_steps = max(int(args.eval_freq // args.n_envs), 1)
+        eval_freq_steps = max(args.eval_freq // args.n_envs, 1)
         eval_cb = EvalCallback(
             eval_env,
             best_model_save_path=str(best_model_path.parent),
             log_path=str(best_model_path.parent),
             eval_freq=eval_freq_steps,
-            n_eval_episodes=int(args.eval_episodes),
+            n_eval_episodes=args.eval_episodes,
             deterministic=True,
         )
         callbacks.append(eval_cb)
