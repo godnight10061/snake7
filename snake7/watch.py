@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 import time
+import zipfile
 from pathlib import Path
 from typing import Optional, Union
 
@@ -14,6 +15,32 @@ if __package__ in (None, "") and __name__ == "__main__":
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
     __package__ = "snake7"
+
+from stable_baselines3 import PPO
+
+from snake7.env import SnakeEnv
+from snake7.wrappers import ObsStackWrapper
+
+try:
+    from sb3_contrib import RecurrentPPO
+except ImportError:
+    RecurrentPPO = None
+
+
+def is_recurrent_model(model_path: Path) -> bool:
+    """
+    Check if the model at model_path was saved with RecurrentPPO.
+    Peeks into the ZIP's 'data' file without fully loading the model.
+    """
+    try:
+        with zipfile.ZipFile(model_path, "r") as archive:
+            if "data" not in archive.namelist():
+                return False
+            data = archive.read("data")
+            # RecurrentPPO models in sb3_contrib contain these strings in their pickled/json data.
+            return b"RecurrentPPO" in data
+    except Exception:
+        return False
 
 
 def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Path) -> Path:
@@ -95,18 +122,31 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    try:
-        from sb3_contrib import RecurrentPPO
-    except Exception as e:  # pragma: no cover
-        raise SystemExit("sb3_contrib is required: pip install sb3-contrib") from e
-
-    from snake7.env import SnakeEnv
-
     if args.episodes <= 0:
         raise SystemExit("--episodes must be > 0")
 
     model_path = resolve_model_path(model_path=args.model, model_dir=args.model_dir)
-    model = RecurrentPPO.load(str(model_path))
+
+    # Robust model loading: detect if RecurrentPPO is needed.
+    if is_recurrent_model(model_path):
+        if RecurrentPPO is None:
+            raise SystemExit("Model requires sb3_contrib.RecurrentPPO but it is not installed.")
+        try:
+            model = RecurrentPPO.load(str(model_path))
+        except Exception as e:
+            raise SystemExit(f"Could not load model as RecurrentPPO: {e}")
+    else:
+        try:
+            model = PPO.load(str(model_path))
+        except Exception as e:
+            # Fallback to RecurrentPPO if PPO fails and it's installed, just in case detection missed it.
+            if RecurrentPPO is not None:
+                try:
+                    model = RecurrentPPO.load(str(model_path))
+                except Exception:
+                    raise SystemExit(f"Could not load model as PPO or RecurrentPPO: {e}")
+            else:
+                raise SystemExit(f"Could not load model as PPO: {e}")
 
     use_ansi = (not args.no_ansi) and sys.stdout.isatty()
     if use_ansi:
@@ -128,6 +168,12 @@ def main() -> None:
                 max_steps=args.max_steps,
                 render_mode="ansi",
             )
+
+            # Check if we need to wrap the environment (e.g. for Transformer models)
+            if len(model.observation_space.shape) == 2 and len(env.observation_space.shape) == 1:
+                n_stack = model.observation_space.shape[0]
+                env = ObsStackWrapper(env, n_stack=n_stack)
+
             obs, info = env.reset(seed=args.seed + ep)
             lstm_state = None
             episode_start = [True]
