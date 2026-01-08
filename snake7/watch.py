@@ -51,7 +51,8 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
     1) Explicit `model_path`
     2) `best_model.zip` in `model_dir`
     3) `snake_ppo_lstm.zip` in `model_dir`
-    4) Newest `*.zip` in `model_dir` (mtime, tie-break by path)
+    4) `best_genome.pkl` in `model_dir`
+    5) Newest `*.zip` or `*.pkl` in `model_dir` (mtime, tie-break by path)
     """
     model_dir = Path(model_dir)
 
@@ -61,7 +62,11 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
             raise FileNotFoundError(f"Model not found: {p}")
         return p
 
-    preferred = [model_dir / "best_model.zip", model_dir / "snake_ppo_lstm.zip"]
+    preferred = [
+        model_dir / "best_model.zip",
+        model_dir / "snake_ppo_lstm.zip",
+        model_dir / "best_genome.pkl",
+    ]
     for p in preferred:
         if p.exists():
             return p
@@ -69,9 +74,9 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
     if not model_dir.exists():
         raise FileNotFoundError(f"Model directory not found: {model_dir}")
 
-    zips = sorted(model_dir.glob("*.zip"))
-    if not zips:
-        raise FileNotFoundError(f"No .zip models found in: {model_dir}")
+    files = sorted(list(model_dir.glob("*.zip")) + list(model_dir.glob("*.pkl")))
+    if not files:
+        raise FileNotFoundError(f"No .zip or .pkl models found in: {model_dir}")
 
     def sort_key(p: Path) -> tuple[float, str]:
         try:
@@ -81,7 +86,7 @@ def resolve_model_path(*, model_path: Optional[Union[str, Path]], model_dir: Pat
         # newest first; tie-break by path (ascending) for determinism
         return (-mtime, str(p))
 
-    return sorted(zips, key=sort_key)[0]
+    return sorted(files, key=sort_key)[0]
 
 
 def _enable_windows_vt_mode() -> None:
@@ -104,7 +109,7 @@ def _enable_windows_vt_mode() -> None:
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Watch a trained Snake agent play in real time (terminal/ANSI).")
-    p.add_argument("--model", type=Path, default=None, help="Path to model .zip (optional).")
+    p.add_argument("--model", type=Path, default=None, help="Path to model .zip or .pkl (optional).")
     p.add_argument("--model-dir", type=Path, default=Path("."), help="Directory to search for model files.")
 
     p.add_argument("--width", type=int, default=10)
@@ -119,6 +124,62 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+class NeatAgent:
+    def __init__(self, genome_path: Path):
+        import pickle
+
+        import neat
+
+        self.genome_path = Path(genome_path)
+        with open(self.genome_path, "rb") as f:
+            self.genome = pickle.load(f)
+
+        config_path = self.genome_path.parent / "neat_config.txt"
+        if not config_path.exists():
+            config_path = self.genome_path.parent / "snake_neat_config.txt"
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"NEAT config not found next to genome: {self.genome_path} (expected neat_config.txt)"
+            )
+
+        self.config = neat.Config(
+            neat.DefaultGenome,
+            neat.DefaultReproduction,
+            neat.DefaultSpeciesSet,
+            neat.DefaultStagnation,
+            str(config_path),
+        )
+
+        if bool(getattr(self.config.genome_config, "feed_forward", True)):
+            self.net = neat.nn.FeedForwardNetwork.create(self.genome, self.config)
+        else:
+            self.net = neat.nn.RecurrentNetwork.create(self.genome, self.config)
+
+    @staticmethod
+    def _select_action(outputs) -> int:
+        best_i = 0
+        best_v = float("-inf")
+        for i, v in enumerate(outputs):
+            fv = float(v)
+            if fv > best_v:
+                best_v = fv
+                best_i = int(i)
+        return int(best_i)
+
+    def predict(self, obs, state=None, episode_start=None, deterministic=True):
+        import numpy as np
+
+        if episode_start and bool(episode_start[0]) and hasattr(self.net, "reset"):
+            try:
+                self.net.reset()
+            except Exception:
+                pass
+
+        outputs = self.net.activate(obs.tolist())
+        action = self._select_action(outputs)
+        return np.array(action), None
+
+
 def main() -> None:
     args = _parse_args()
 
@@ -127,26 +188,33 @@ def main() -> None:
 
     model_path = resolve_model_path(model_path=args.model, model_dir=args.model_dir)
 
-    # Robust model loading: detect if RecurrentPPO is needed.
-    if is_recurrent_model(model_path):
-        if RecurrentPPO is None:
-            raise SystemExit("Model requires sb3_contrib.RecurrentPPO but it is not installed.")
+    if model_path.suffix.lower() in {".pkl", ".pickle"}:
         try:
-            model = RecurrentPPO.load(str(model_path))
-        except Exception as e:
-            raise SystemExit(f"Could not load model as RecurrentPPO: {e}")
+            import neat  # noqa: F401
+        except ImportError:
+            raise SystemExit("neat-python is required for .pkl models: pip install neat-python")
+        model = NeatAgent(model_path)
     else:
-        try:
-            model = PPO.load(str(model_path))
-        except Exception as e:
-            # Fallback to RecurrentPPO if PPO fails and it's installed, just in case detection missed it.
-            if RecurrentPPO is not None:
-                try:
-                    model = RecurrentPPO.load(str(model_path))
-                except Exception:
-                    raise SystemExit(f"Could not load model as PPO or RecurrentPPO: {e}")
-            else:
-                raise SystemExit(f"Could not load model as PPO: {e}")
+        # Robust model loading: detect if RecurrentPPO is needed.
+        if is_recurrent_model(model_path):
+            if RecurrentPPO is None:
+                raise SystemExit("Model requires sb3_contrib.RecurrentPPO but it is not installed.")
+            try:
+                model = RecurrentPPO.load(str(model_path))
+            except Exception as e:
+                raise SystemExit(f"Could not load model as RecurrentPPO: {e}")
+        else:
+            try:
+                model = PPO.load(str(model_path))
+            except Exception as e:
+                # Fallback to RecurrentPPO if PPO fails and it's installed, just in case detection missed it.
+                if RecurrentPPO is not None:
+                    try:
+                        model = RecurrentPPO.load(str(model_path))
+                    except Exception:
+                        raise SystemExit(f"Could not load model as PPO or RecurrentPPO: {e}")
+                else:
+                    raise SystemExit(f"Could not load model as PPO: {e}")
 
     use_ansi = (not args.no_ansi) and sys.stdout.isatty()
     if use_ansi:
@@ -170,8 +238,10 @@ def main() -> None:
             )
 
             # Check if we need to wrap the environment (e.g. for Transformer models)
-            if len(model.observation_space.shape) == 2 and len(env.observation_space.shape) == 1:
-                n_stack = model.observation_space.shape[0]
+            model_obs = getattr(model, "observation_space", None)
+            model_shape = getattr(model_obs, "shape", None)
+            if model_shape is not None and len(model_shape) == 2 and len(env.observation_space.shape) == 1:
+                n_stack = model_shape[0]
                 env = ObsStackWrapper(env, n_stack=n_stack)
 
             obs, info = env.reset(seed=args.seed + ep)

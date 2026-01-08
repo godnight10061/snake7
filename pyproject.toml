@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "neat-python"]
 
 [project.scripts]
 snake7-train = "snake7.train:main"

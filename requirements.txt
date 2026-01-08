@@ -3,5 +3,6 @@ numpy
 torch
 stable-baselines3
 sb3-contrib
+neat-python
 pytest
 
