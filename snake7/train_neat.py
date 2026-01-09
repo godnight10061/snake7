@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-delta", type=float, default=0.01)
 
     p.add_argument("--genome-out", type=Path, default=Path("snake_neat_genome.pkl"))
-    p.add_argument("--config-out", type=Path, default=Path("snake_neat_config.txt"))
+    p.add_argument("--config-out", type=Path, default=Path("neat_config.txt"))
 
     return p.parse_args()
 
@@ -229,9 +229,20 @@ def main() -> None:
         sys.exit(1)
 
     import numpy as np
+    from snake7.env import SnakeEnv
+
+    # Determine inputs/outputs from environment
+    temp_env = SnakeEnv()
+    num_inputs = int(np.prod(temp_env.observation_space.shape))
+    num_outputs = int(temp_env.action_space.n)
+    temp_env.close()
 
     # Build config
-    config_content = render_neat_config(pop_size=args.pop_size, num_inputs=9, num_outputs=3)
+    config_content = render_neat_config(
+        pop_size=args.pop_size,
+        num_inputs=num_inputs,
+        num_outputs=num_outputs,
+    )
     args.config_out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.config_out, "w") as f:
         f.write(config_content)
@@ -249,13 +260,15 @@ def main() -> None:
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
 
+    class EarlyStopException(Exception):
+        pass
+
     class WallTimeEarlyStopReporter(neat.reporting.BaseReporter):
         def __init__(self, patience_seconds: float, min_delta: float):
             self.patience_seconds = patience_seconds
             self.min_delta = min_delta
             self.best_fitness = float("-inf")
             self.last_improvement_time = time.monotonic()
-            self.should_stop = False
 
         def post_evaluate(self, config, population, species, best_genome):
             now = time.monotonic()
@@ -264,7 +277,7 @@ def main() -> None:
                 self.last_improvement_time = now
             elif now - self.last_improvement_time > self.patience_seconds:
                 print(f"\nEarly stopping: no improvement for {now - self.last_improvement_time:.1f}s")
-                self.should_stop = True
+                raise EarlyStopException()
 
     early_stop = WallTimeEarlyStopReporter(args.patience_seconds, args.min_delta)
     p.add_reporter(early_stop)
@@ -293,16 +306,13 @@ def main() -> None:
         )
 
     try:
-        gen_count = 0
-        while not early_stop.should_stop:
-            p.run(_eval_genomes, 1)
-            gen_count += 1
-            if args.generations is not None and gen_count >= args.generations:
-                break
-        winner = stats.best_genome()
+        p.run(_eval_genomes, args.generations)
+    except EarlyStopException:
+        pass
     except KeyboardInterrupt:
-        winner = stats.best_genome()
         print("\nInterrupted by user.")
+
+    winner = stats.best_genome()
 
     if winner is None:
         print("\nNo genome evolved (interrupted early?).")

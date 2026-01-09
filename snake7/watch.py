@@ -97,11 +97,26 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def select_action(outputs: Any) -> int:
+    """
+    Convert NEAT network outputs to a discrete action.
+
+    Snake action space: 0=straight, 1=left, 2=right.
+    """
+    best_i = 0
+    best_v = float("-inf")
+    for i, v in enumerate(outputs):
+        fv = float(v)
+        if fv > best_v:
+            best_v = fv
+            best_i = int(i)
+    return int(best_i)
+
+
 class NeatAgent:
     def __init__(self, genome_path: Path):
         import pickle
         import neat
-        from snake7.train_neat import select_action
 
         self.genome_path = genome_path
         with open(genome_path, "rb") as f:
