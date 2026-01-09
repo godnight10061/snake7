@@ -26,6 +26,7 @@ snake7-train = "snake7.train:main"
 snake7-train-transformer = "snake7.train_transformer:main"
 snake7-eval = "snake7.eval:main"
 snake7-watch = "snake7.watch:main"
+snake7-neat-viz = "snake7.neat_viz:main"
 
 [tool.setuptools]
 packages = ["snake7"]

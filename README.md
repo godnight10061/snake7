@@ -15,6 +15,7 @@ pip install -e .
 - Train (Transformer PPO): `python -m snake7.train_transformer --total-timesteps 600000 --device cuda --model-out runs/snake_ppo_transformer.zip --best-model-out runs/best_model.zip`
 - Eval: `python -m snake7.eval --model runs/best_model.zip --episodes 50 --deterministic`
 - Watch: `python -m snake7.watch --model runs/best_model.zip --fps 12 --deterministic`
+- Visualize NEAT genome (Graphviz DOT): `python -m snake7.neat_viz runs/infinite_neat/best_genome.pkl --out runs/infinite_neat/network.dot`
 
 ## Environment
 
