@@ -5,7 +5,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 # Allow running this file directly (e.g. `python snake7/watch.py`) by ensuring the
 # repository root is on sys.path. Recommended usage is still `python -m snake7.watch`.
@@ -103,14 +103,7 @@ def select_action(outputs: Any) -> int:
 
     Snake action space: 0=straight, 1=left, 2=right.
     """
-    best_i = 0
-    best_v = float("-inf")
-    for i, v in enumerate(outputs):
-        fv = float(v)
-        if fv > best_v:
-            best_v = fv
-            best_i = int(i)
-    return int(best_i)
+    return max(range(len(outputs)), key=lambda i: float(outputs[i]))
 
 
 class NeatAgent:
@@ -123,12 +116,16 @@ class NeatAgent:
             self.genome = pickle.load(f)
 
         # Look for config next to genome
-        config_path = genome_path.parent / "neat_config.txt"
-        if not config_path.exists():
-            config_path = genome_path.parent / "snake_neat_config.txt"
-
-        if not config_path.exists():
-            raise FileNotFoundError(f"NEAT config not found next to genome at {genome_path}")
+        config_candidates = [
+            genome_path.parent / "neat_config.txt",
+            genome_path.parent / "snake_neat_config.txt",
+        ]
+        config_path = next((p for p in config_candidates if p.exists()), None)
+        if config_path is None:
+            expected = ", ".join(p.name for p in config_candidates)
+            raise FileNotFoundError(
+                f"NEAT config not found next to genome: {genome_path} (expected {expected})"
+            )
 
         self.config = neat.Config(
             neat.DefaultGenome,

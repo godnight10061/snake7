@@ -4,6 +4,7 @@ import argparse
 import pickle
 import sys
 import time
+from math import prod
 from pathlib import Path
 from typing import Any
 
@@ -154,15 +155,7 @@ def select_action(outputs: Any) -> int:
 
     Snake action space: 0=straight, 1=left, 2=right.
     """
-
-    best_i = 0
-    best_v = float("-inf")
-    for i, v in enumerate(outputs):
-        fv = float(v)
-        if fv > best_v:
-            best_v = fv
-            best_i = int(i)
-    return int(best_i)
+    return max(range(len(outputs)), key=lambda i: float(outputs[i]))
 
 
 def eval_genome(
@@ -193,7 +186,7 @@ def eval_genome(
     finally:
         env.close()
 
-    return float(total_reward / float(episodes))
+    return total_reward / episodes
 
 
 def eval_genomes(
@@ -216,7 +209,7 @@ def eval_genomes(
         genome.fitness = fitness
         if fitness > best:
             best = fitness
-    return float(best)
+    return best
 
 
 def main() -> None:
@@ -228,12 +221,25 @@ def main() -> None:
         print("neat-python is required: pip install neat-python")
         sys.exit(1)
 
-    import numpy as np
     from snake7.env import SnakeEnv
 
+    env_kwargs = {
+        "width": args.width,
+        "height": args.height,
+        "max_steps": args.max_steps,
+        "max_steps_without_food": args.max_steps_without_food,
+        "step_penalty": args.step_penalty,
+        "truncation_penalty": args.truncation_penalty,
+        "distance_shaping": args.distance_shaping,
+        "distance_shaping_clip": args.distance_shaping_clip,
+        "food_reward": args.food_reward,
+        "death_penalty": args.death_penalty,
+        "win_reward": args.win_reward,
+    }
+
     # Determine inputs/outputs from environment
-    temp_env = SnakeEnv()
-    num_inputs = int(np.prod(temp_env.observation_space.shape))
+    temp_env = SnakeEnv(**env_kwargs)
+    num_inputs = int(prod(temp_env.observation_space.shape))
     num_outputs = int(temp_env.action_space.n)
     temp_env.close()
 
@@ -270,7 +276,7 @@ def main() -> None:
             self.best_fitness = float("-inf")
             self.last_improvement_time = time.monotonic()
 
-        def post_evaluate(self, config, population, species, best_genome):
+        def post_evaluate(self, _config, _population, _species, best_genome):
             now = time.monotonic()
             if best_genome.fitness > self.best_fitness + self.min_delta:
                 self.best_fitness = best_genome.fitness
@@ -306,13 +312,12 @@ def main() -> None:
         )
 
     try:
-        p.run(_eval_genomes, args.generations)
+        winner = p.run(_eval_genomes, args.generations)
     except EarlyStopException:
-        pass
+        winner = stats.best_genome()
     except KeyboardInterrupt:
         print("\nInterrupted by user.")
-
-    winner = stats.best_genome()
+        winner = stats.best_genome()
 
     if winner is None:
         print("\nNo genome evolved (interrupted early?).")
