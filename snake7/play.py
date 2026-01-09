@@ -35,7 +35,7 @@ def main() -> None:
     try:
         from sb3_contrib import RecurrentPPO
     except Exception as e:  # pragma: no cover
-        raise SystemExit("sb3_contrib is required: pip install sb3-contrib") from e
+        raise SystemExit("sb3_contrib is required: python -m pip install sb3-contrib") from e
 
     from snake7.env import SnakeEnv
 

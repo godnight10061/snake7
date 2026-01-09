@@ -55,3 +55,9 @@ def test_train_neat_can_run_by_path_showing_help():
     assert "ModuleNotFoundError" not in proc.stderr
     assert "No module named 'snake7'" not in proc.stderr
 
+def test_train_transformer_can_run_by_path_showing_help():
+    repo_root = Path(__file__).resolve().parents[1]
+    proc = _run_help(repo_root, "snake7/train_transformer.py")
+    assert proc.returncode == 0, proc.stderr
+    assert "ModuleNotFoundError" not in proc.stderr
+    assert "No module named 'snake7'" not in proc.stderr

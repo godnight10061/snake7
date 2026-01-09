@@ -36,13 +36,14 @@ def test_neat_config_generation(tmp_path):
     
 def test_watch_decoupling():
     """Test that watch.py has its own select_action and works."""
-    assert hasattr(snake7.watch, "select_action")
-    assert callable(snake7.watch.select_action)
+    assert hasattr(snake7.watch, "NeatAgent")
+    assert hasattr(snake7.watch.NeatAgent, "_select_action")
+    assert callable(snake7.watch.NeatAgent._select_action)
     
     # Verify logic (argmax)
-    assert snake7.watch.select_action([0.1, 0.9, 0.2]) == 1
-    assert snake7.watch.select_action([0.8, 0.1, 0.1]) == 0
-    assert snake7.watch.select_action([0.1, 0.1, 0.8]) == 2
+    assert snake7.watch.NeatAgent._select_action([0.1, 0.9, 0.2]) == 1
+    assert snake7.watch.NeatAgent._select_action([0.8, 0.1, 0.1]) == 0
+    assert snake7.watch.NeatAgent._select_action([0.1, 0.1, 0.8]) == 2
 
 def test_neat_config_dynamic_shape(tmp_path):
     """Test that config adapts to Env shapes."""
