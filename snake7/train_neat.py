@@ -288,20 +288,6 @@ def main() -> None:
     early_stop = WallTimeEarlyStopReporter(args.patience_seconds, args.min_delta)
     p.add_reporter(early_stop)
 
-    env_kwargs = {
-        "width": args.width,
-        "height": args.height,
-        "max_steps": args.max_steps,
-        "max_steps_without_food": args.max_steps_without_food,
-        "step_penalty": args.step_penalty,
-        "truncation_penalty": args.truncation_penalty,
-        "distance_shaping": args.distance_shaping,
-        "distance_shaping_clip": args.distance_shaping_clip,
-        "food_reward": args.food_reward,
-        "death_penalty": args.death_penalty,
-        "win_reward": args.win_reward,
-    }
-
     def _eval_genomes(genomes, config):
         eval_genomes(
             genomes,
