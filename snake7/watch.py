@@ -124,12 +124,15 @@ class NeatAgent:
         with open(self.genome_path, "rb") as f:
             self.genome = pickle.load(f)
 
-        config_path = self.genome_path.parent / "neat_config.txt"
-        if not config_path.exists():
-            config_path = self.genome_path.parent / "snake_neat_config.txt"
-        if not config_path.exists():
+        config_candidates = [
+            self.genome_path.parent / "neat_config.txt",
+            self.genome_path.parent / "snake_neat_config.txt",
+        ]
+        config_path = next((p for p in config_candidates if p.exists()), None)
+        if config_path is None:
+            expected = ", ".join(p.name for p in config_candidates)
             raise FileNotFoundError(
-                f"NEAT config not found next to genome: {self.genome_path} (expected neat_config.txt)"
+                f"NEAT config not found next to genome: {self.genome_path} (expected {expected})"
             )
 
         self.config = neat.Config(
@@ -147,14 +150,7 @@ class NeatAgent:
 
     @staticmethod
     def _select_action(outputs) -> int:
-        best_i = 0
-        best_v = float("-inf")
-        for i, v in enumerate(outputs):
-            fv = float(v)
-            if fv > best_v:
-                best_v = fv
-                best_i = int(i)
-        return int(best_i)
+        return max(range(len(outputs)), key=lambda i: float(outputs[i]))
 
     def predict(self, obs, state=None, episode_start=None, deterministic=True):
         import numpy as np

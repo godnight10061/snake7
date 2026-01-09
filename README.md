@@ -12,6 +12,7 @@ pip install -e .
 
 - Run tests: `pytest -q`
 - Train (GPU + saves `best_model.zip` via eval): `python -m snake7.train --total-timesteps 600000 --device cuda --model-out runs/snake_ppo_lstm.zip --best-model-out runs/best_model.zip`
+- Train (NEAT): `python -m snake7.train_neat --generations 200 --genome-out runs/best_genome.pkl --config-out runs/neat_config.txt`
 - Train (Transformer PPO): `python -m snake7.train_transformer --total-timesteps 600000 --device cuda --model-out runs/snake_ppo_transformer.zip --best-model-out runs/best_model.zip`
 - Eval: `python -m snake7.eval --model runs/best_model.zip --episodes 50 --deterministic`
 - Watch: `python -m snake7.watch --model runs/best_model.zip --fps 12 --deterministic`

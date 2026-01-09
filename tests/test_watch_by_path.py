@@ -127,106 +127,19 @@ def test_watch_can_run_neat_by_path(tmp_path: Path):
     import numpy as np
 
     from snake7.env import SnakeEnv
+    from snake7.train_neat import render_neat_config
 
     env = SnakeEnv()
     num_inputs = env.observation_space.shape[0]
     num_outputs = env.action_space.n
+    env.close()
 
     cfg_path = tmp_path / "neat_config.txt"
     cfg_path.write_text(
-        (
-            f"""
-[NEAT]
-fitness_criterion     = max
-fitness_threshold     = 1000000
-pop_size              = 2
-reset_on_extinction   = False
-no_fitness_termination = False
-
-[DefaultGenome]
-# node activation options
-activation_default      = tanh
-activation_mutate_rate  = 0.0
-activation_options      = tanh
-
-# node aggregation options
-aggregation_default     = sum
-aggregation_mutate_rate = 0.0
-aggregation_options     = sum
-
-# node bias options
-bias_init_type          = gaussian
-bias_init_mean          = 0.0
-bias_init_stdev         = 1.0
-bias_max_value          = 30.0
-bias_min_value          = -30.0
-bias_mutate_power       = 0.5
-bias_mutate_rate        = 0.7
-bias_replace_rate       = 0.1
-
-# node response options
-response_init_type      = gaussian
-response_init_mean      = 1.0
-response_init_stdev     = 0.0
-response_max_value      = 30.0
-response_min_value      = -30.0
-response_mutate_power   = 0.0
-response_mutate_rate    = 0.0
-response_replace_rate   = 0.0
-
-# genome compatibility options
-compatibility_disjoint_coefficient = 1.0
-compatibility_weight_coefficient   = 0.5
-
-# connection add/remove rates
-conn_add_prob           = 0.5
-conn_delete_prob        = 0.5
-
-# connection enable options
-enabled_default         = True
-enabled_mutate_rate     = 0.01
-enabled_rate_to_true_add  = 0.0
-enabled_rate_to_false_add = 0.0
-
-# connection weight options
-weight_init_type        = gaussian
-weight_init_mean        = 0.0
-weight_init_stdev       = 1.0
-weight_max_value        = 30
-weight_min_value        = -30
-weight_mutate_power     = 0.5
-weight_mutate_rate        = 0.8
-weight_replace_rate     = 0.1
-
-# node add/remove rates
-node_add_prob           = 0.2
-node_delete_prob        = 0.2
-
-# network parameters
-num_hidden              = 0
-num_inputs              = {int(num_inputs)}
-num_outputs             = {int(num_outputs)}
-feed_forward            = True
-initial_connection      = full
-
-# structural mutation options
-single_structural_mutation = False
-structural_mutation_surer   = default
-
-[DefaultSpeciesSet]
-compatibility_threshold = 3.0
-
-[DefaultStagnation]
-species_fitness_func = max
-max_stagnation       = 20
-species_elitism      = 2
-
-[DefaultReproduction]
-elitism            = 2
-survival_threshold = 0.2
-min_species_size   = 2
-""".lstrip()
-            + "\n"
+        render_neat_config(
+            pop_size=2,
+            num_inputs=num_inputs,
+            num_outputs=num_outputs,
         ),
         encoding="utf-8",
     )
@@ -243,7 +156,6 @@ min_species_size   = 2
     np.random.seed(0)
     pop = neat.Population(config)
     genome = pop.population[min(pop.population.keys())]
-
     genome_path = tmp_path / "best_genome.pkl"
     with open(genome_path, "wb") as f:
         pickle.dump(genome, f)

@@ -106,6 +106,19 @@ min_species_size   = 2
     )
 
 
+def _make_connection_gene(conn_gene_type, key: tuple[int, int], *, innovation: int):
+    """
+    neat-python compatibility helper.
+
+    - neat-python <= 0.92: DefaultConnectionGene.__init__(key)
+    - neat-python >= 1.0: DefaultConnectionGene.__init__(key, innovation) (required)
+    """
+    try:
+        return conn_gene_type(key, innovation)
+    except TypeError:
+        return conn_gene_type(key)
+
+
 def test_neat_viz_dot_skips_disabled_by_default(tmp_path: Path):
     neat = pytest.importorskip("neat")
 
@@ -140,17 +153,17 @@ def test_neat_viz_dot_skips_disabled_by_default(tmp_path: Path):
     in0, in1 = config.genome_config.input_keys[:2]
     out0, out1 = config.genome_config.output_keys[:2]
 
-    c1 = conn_gene_type((in0, hidden_key))
+    c1 = _make_connection_gene(conn_gene_type, (in0, hidden_key), innovation=1)
     c1.weight = 0.5
     c1.enabled = True
     genome.connections[(in0, hidden_key)] = c1
 
-    c2 = conn_gene_type((hidden_key, out0))
+    c2 = _make_connection_gene(conn_gene_type, (hidden_key, out0), innovation=2)
     c2.weight = -1.0
     c2.enabled = True
     genome.connections[(hidden_key, out0)] = c2
 
-    c3 = conn_gene_type((in1, out1))
+    c3 = _make_connection_gene(conn_gene_type, (in1, out1), innovation=3)
     c3.weight = 1.0
     c3.enabled = False
     genome.connections[(in1, out1)] = c3
@@ -203,7 +216,7 @@ def test_neat_viz_dot_include_disabled(tmp_path: Path):
     in1 = config.genome_config.input_keys[1]
     out1 = config.genome_config.output_keys[1]
 
-    c = conn_gene_type((in1, out1))
+    c = _make_connection_gene(conn_gene_type, (in1, out1), innovation=1)
     c.weight = 1.0
     c.enabled = False
     genome.connections[(in1, out1)] = c
