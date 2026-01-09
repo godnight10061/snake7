@@ -16,16 +16,6 @@ if __package__ in (None, "") and __name__ == "__main__":
         sys.path.insert(0, str(repo_root))
     __package__ = "snake7"
 
-from stable_baselines3 import PPO
-
-from snake7.env import SnakeEnv
-from snake7.wrappers import ObsStackWrapper
-
-try:
-    from sb3_contrib import RecurrentPPO
-except ImportError:
-    RecurrentPPO = None
-
 
 def is_recurrent_model(model_path: Path) -> bool:
     """
@@ -192,9 +182,25 @@ def main() -> None:
         try:
             import neat  # noqa: F401
         except ImportError:
-            raise SystemExit("neat-python is required for .pkl models: pip install neat-python")
+            raise SystemExit(
+                "neat-python is required for .pkl models: python -m pip install neat-python\n"
+                "Or install all dev dependencies: pip install -e .[dev]"
+            )
         model = NeatAgent(model_path)
     else:
+        try:
+            from stable_baselines3 import PPO
+        except ImportError:
+            raise SystemExit(
+                "stable-baselines3 is required for .zip models: python -m pip install stable-baselines3\n"
+                "Or install all dev dependencies: pip install -e .[dev]"
+            )
+
+        try:
+            from sb3_contrib import RecurrentPPO
+        except ImportError:
+            RecurrentPPO = None
+
         # Robust model loading: detect if RecurrentPPO is needed.
         if is_recurrent_model(model_path):
             if RecurrentPPO is None:
@@ -221,6 +227,9 @@ def main() -> None:
         _enable_windows_vt_mode()
 
     delay = 0.0 if args.fps <= 0 else 1.0 / args.fps
+
+    from snake7.env import SnakeEnv
+    from snake7.wrappers import ObsStackWrapper
 
     cursor_hidden = False
     try:
