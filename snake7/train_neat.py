@@ -36,6 +36,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--episodes-per-genome", type=int, default=5)
     p.add_argument("--seed", type=int, default=0)
 
+    p.add_argument("--fitness-reward-weight", type=float, default=1.0)
+    p.add_argument("--fitness-score-weight", type=float, default=0.0)
+    p.add_argument("--fitness-steps-weight", type=float, default=0.0)
+    p.add_argument("--fitness-agg", choices=["mean", "max"], default="mean")
+
     p.add_argument("--patience-seconds", type=float, default=300.0)
     p.add_argument("--min-delta", type=float, default=0.01)
 
@@ -165,28 +170,54 @@ def eval_genome(
     env_kwargs: dict[str, Any],
     episodes: int,
     seed: int,
+    fitness_reward_weight: float = 1.0,
+    fitness_score_weight: float = 0.0,
+    fitness_steps_weight: float = 0.0,
+    fitness_agg: str = "mean",
 ) -> float:
     import neat
 
     from snake7.env import SnakeEnv
 
     net = neat.nn.FeedForwardNetwork.create(genome, config)
-    total_reward = 0.0
+    fitness_reward_weight = float(fitness_reward_weight)
+    fitness_score_weight = float(fitness_score_weight)
+    fitness_steps_weight = float(fitness_steps_weight)
 
     env = SnakeEnv(**env_kwargs)
     try:
+        episode_fitnesses: list[float] = []
         for i in range(int(episodes)):
             obs, _ = env.reset(seed=int(seed) + i)
+            episode_reward = 0.0
+            last_info: dict[str, Any] = {}
             while True:
                 action = select_action(net.activate(obs.tolist()))
-                obs, reward, terminated, truncated, _ = env.step(action)
-                total_reward += float(reward)
+                obs, reward, terminated, truncated, info = env.step(action)
+                episode_reward += float(reward)
+                last_info = info
                 if terminated or truncated:
                     break
+
+            episode_score = float(last_info.get("score", 0.0))
+            episode_steps = float(last_info.get("steps", 0.0))
+            episode_fitness = (
+                fitness_reward_weight * episode_reward
+                + fitness_score_weight * episode_score
+                + fitness_steps_weight * episode_steps
+            )
+            episode_fitnesses.append(float(episode_fitness))
     finally:
         env.close()
 
-    return total_reward / episodes
+    if not episode_fitnesses:
+        return float("-inf")
+
+    if fitness_agg == "max":
+        return max(episode_fitnesses)
+    if fitness_agg == "mean":
+        return sum(episode_fitnesses) / float(len(episode_fitnesses))
+    raise ValueError(f"Unsupported fitness_agg: {fitness_agg}")
 
 
 def eval_genomes(
@@ -196,6 +227,10 @@ def eval_genomes(
     env_kwargs: dict[str, Any],
     episodes_per_genome: int,
     seed: int,
+    fitness_reward_weight: float = 1.0,
+    fitness_score_weight: float = 0.0,
+    fitness_steps_weight: float = 0.0,
+    fitness_agg: str = "mean",
 ) -> float:
     best = float("-inf")
     for _, genome in genomes:
@@ -205,6 +240,10 @@ def eval_genomes(
             env_kwargs=env_kwargs,
             episodes=int(episodes_per_genome),
             seed=int(seed),
+            fitness_reward_weight=float(fitness_reward_weight),
+            fitness_score_weight=float(fitness_score_weight),
+            fitness_steps_weight=float(fitness_steps_weight),
+            fitness_agg=str(fitness_agg),
         )
         genome.fitness = fitness
         if fitness > best:
@@ -295,11 +334,27 @@ def main() -> None:
             env_kwargs=env_kwargs,
             episodes_per_genome=int(args.episodes_per_genome),
             seed=int(args.seed),
+            fitness_reward_weight=float(args.fitness_reward_weight),
+            fitness_score_weight=float(args.fitness_score_weight),
+            fitness_steps_weight=float(args.fitness_steps_weight),
+            fitness_agg=str(args.fitness_agg),
         )
+
+    print(f"\nStarting training for {args.generations if args.generations else 'infinite'} generations.")
+    print(f"Early stop patience: {args.patience_seconds:.1f}s (min delta: {args.min_delta})")
+    print(
+        "Fitness weights:"
+        f" reward={float(args.fitness_reward_weight)}"
+        f" score={float(args.fitness_score_weight)}"
+        f" steps={float(args.fitness_steps_weight)}"
+        f" agg={str(args.fitness_agg)}"
+    )
 
     try:
         winner = p.run(_eval_genomes, args.generations)
+        print("\nTraining finished (generations limit reached or fitness threshold met).")
     except EarlyStopException:
+        print(f"\nTraining stopped due to patience ({args.patience_seconds}s limit reached).")
         winner = stats.best_genome()
     except KeyboardInterrupt:
         print("\nInterrupted by user.")
